@@ -42,7 +42,7 @@
         android:layout_margin="@dimen/spacing_medium"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@drawable/ic_refresh_24dp"
-        android:tint="@android:color/white"
+        app:tint="@android:color/white"
         app:layout_constraintBottom_toBottomOf="@id/stopwatch_background"
         app:layout_constraintStart_toStartOf="@id/stopwatch_background"
         app:layout_constraintTop_toTopOf="@id/stopwatch_background" />
@@ -54,7 +54,7 @@
         android:layout_margin="@dimen/spacing_medium"
         android:background="?attr/selectableItemBackgroundBorderless"
         android:src="@drawable/ic_play_arrow_24dp"
-        android:tint="@android:color/white"
+        app:tint="@android:color/white"
         app:layout_constraintBottom_toBottomOf="@id/stopwatch_background"
         app:layout_constraintEnd_toEndOf="@id/stopwatch_background"
         app:layout_constraintTop_toTopOf="@id/stopwatch_background" />

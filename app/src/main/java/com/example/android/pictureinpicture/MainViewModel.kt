@@ -17,29 +17,34 @@
 package com.example.android.pictureinpicture
 
 import android.os.SystemClock
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.map
 import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.android.awaitFrame
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.time.Duration
+import javax.inject.Inject
 
-class MainViewModel: ViewModel() {
+@HiltViewModel
+class MainViewModel @Inject constructor(): ViewModel() {
 
     private var job: Job? = null
 
     private var startUptimeMillis = SystemClock.uptimeMillis()
-    private val timeMillis = MutableLiveData(0L)
+    private val timeMillis = MutableStateFlow(0L)
 
-    private val _started = MutableLiveData(false)
+    private val _started = MutableStateFlow(false)
 
-    val started: LiveData<Boolean> = _started
-    val time = timeMillis.map { millis ->
+    val started: StateFlow<Boolean> = _started.asStateFlow()
+    val time: StateFlow<String> = timeMillis.map { millis ->
         val minutes = millis / 1000 / 60
         val m = minutes.toString().padStart(2, '0')
         val seconds = (millis / 1000) % 60
@@ -47,7 +52,11 @@ class MainViewModel: ViewModel() {
         val hundredths = (millis % 1000) / 10
         val h = hundredths.toString().padStart(2, '0')
         "$m:$s:$h"
-    }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = "00:00:00"
+    )
 
     /**
      * Starts the stopwatch if it is not yet started, or pauses it if it is already started.
@@ -63,7 +72,7 @@ class MainViewModel: ViewModel() {
     }
 
     private suspend fun CoroutineScope.start() {
-        startUptimeMillis = SystemClock.uptimeMillis() - (timeMillis.value ?: 0L)
+        startUptimeMillis = SystemClock.uptimeMillis() - timeMillis.value
         while (isActive) {
             timeMillis.value = SystemClock.uptimeMillis() - startUptimeMillis
             // Updates on every render frame.

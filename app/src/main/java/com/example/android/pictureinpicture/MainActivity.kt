@@ -37,6 +37,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.example.android.pictureinpicture.databinding.MainActivityBinding
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
 /** Intent action for stopwatch controls from Picture-in-Picture mode.  */
@@ -53,6 +54,7 @@ private const val REQUEST_START_OR_PAUSE = 4
 /**
  * Demonstrates usage of Picture-in-Picture mode on phones and tablets.
  */
+@AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
     private val viewModel: MainViewModel by viewModels()
@@ -89,13 +91,24 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this@MainActivity, MovieActivity::class.java))
             finish()
         }
-        // Observe data from the viewModel.
-        viewModel.time.observe(this) { time -> binding.time.text = time }
-        viewModel.started.observe(this) { started ->
-            binding.startOrPause.setImageResource(
-                if (started) R.drawable.ic_pause_24dp else R.drawable.ic_play_arrow_24dp
-            )
-            updatePictureInPictureParams(started)
+        // Collect state from the viewModel using Flow
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.time.collect { time ->
+                    binding.time.text = time
+                }
+            }
+        }
+        
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.started.collect { started ->
+                    binding.startOrPause.setImageResource(
+                        if (started) R.drawable.ic_pause_24dp else R.drawable.ic_play_arrow_24dp
+                    )
+                    updatePictureInPictureParams(started)
+                }
+            }
         }
 
         // Use trackPipAnimationHint view to make a smooth enter/exit pip transition.

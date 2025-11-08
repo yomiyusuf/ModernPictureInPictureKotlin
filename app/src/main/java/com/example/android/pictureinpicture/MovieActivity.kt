@@ -35,10 +35,12 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.doOnLayout
 import com.example.android.pictureinpicture.databinding.MovieActivityBinding
 import com.example.android.pictureinpicture.widget.MovieView
+import dagger.hilt.android.AndroidEntryPoint
 
 /**
  * Demonstrates usage of Picture-in-Picture when using [MediaSessionCompat].
  */
+@AndroidEntryPoint
 class MovieActivity : AppCompatActivity() {
 
     companion object {

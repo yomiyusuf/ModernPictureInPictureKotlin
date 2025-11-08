@@ -15,10 +15,10 @@
  limitations under the License.
 -->
 <manifest
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.android.pictureinpicture">
+    xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application
+        android:name=".PictureInPictureApplication"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
