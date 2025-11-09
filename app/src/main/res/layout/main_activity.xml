@@ -94,6 +94,7 @@
                 android:id="@+id/pip"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:visibility="gone"
                 android:drawableStart="@drawable/ic_picture_in_picture_alt"
                 android:drawablePadding="@dimen/spacing_medium"
                 android:drawableTint="@android:color/black"
@@ -107,7 +108,7 @@
                 android:layout_marginTop="@dimen/spacing_medium"
                 android:hyphenationFrequency="normal"
                 android:justificationMode="inter_word"
-                android:text="@string/explanation_main"
+                android:text="@string/explanation_legacy_main"
                 android:textAppearance="@style/TextAppearance.AppCompat.Body1" />
 
             <Button

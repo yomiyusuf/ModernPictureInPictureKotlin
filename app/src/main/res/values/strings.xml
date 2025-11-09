@@ -30,6 +30,15 @@
     ]]></string>
     <string name="switch_media_session">Switch to using MediaSession</string>
     <string name="timer_from_main_activity">Timer from Main Activity</string>
+    <string name="explanation_legacy_main"><![CDATA[
+    This sample shows a stopwatch that demonstrates timer functionality. The timer continues to work
+    seamlessly as you navigate between activities. Picture-in-Picture mode requires Android 8.0 or higher.
+    ]]></string>
+    <string name="pip_not_supported">Picture-in-Picture mode is not supported on this device</string>
+    <string name="pip_disabled">Picture-in-Picture mode is disabled by device policy</string>
+    <string name="pip_failed">Failed to enter Picture-in-Picture mode</string>
+    <string name="pip_requires_api_26">Picture-in-Picture requires Android 8.0 or higher</string>
+    <string name="pip_available">Picture-in-Picture is available on this device</string>
 
     <!-- Movie -->
     <eat-comment />

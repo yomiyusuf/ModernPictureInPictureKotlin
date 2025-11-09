@@ -25,9 +25,11 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.Configuration
 import android.graphics.drawable.Icon
+import android.os.Build
 import android.os.Bundle
 import android.util.Rational
 import android.view.View
+import android.widget.Toast
 import androidx.activity.trackPipAnimationHintView
 import androidx.activity.viewModels
 import androidx.annotation.DrawableRes
@@ -37,9 +39,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.example.android.pictureinpicture.databinding.MainActivityBinding
+import com.example.android.pictureinpicture.util.PipCompatibilityManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /** Intent action for stopwatch controls from Picture-in-Picture mode.  */
 private const val ACTION_STOPWATCH_CONTROL = "stopwatch_control"
@@ -60,6 +64,9 @@ class MainActivity : AppCompatActivity() {
 
     private val viewModel: MainViewModel by viewModels()
     private lateinit var binding: MainActivityBinding
+    
+    @Inject
+    lateinit var pipCompatibilityManager: PipCompatibilityManager
 
     /**
      * A [BroadcastReceiver] for handling action items on the picture-in-picture mode.
@@ -87,7 +94,23 @@ class MainActivity : AppCompatActivity() {
         binding.clear.setOnClickListener { viewModel.clear() }
         binding.startOrPause.setOnClickListener { viewModel.startOrPause() }
         binding.pip.setOnClickListener {
-            enterPictureInPictureMode(updatePictureInPictureParams(viewModel.started.value))
+            if (!pipCompatibilityManager.hasPictureInPictureSupport()) {
+                Toast.makeText(this, pipCompatibilityManager.getPictureInPictureStatusMessageRes(), Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+            
+            if (!pipCompatibilityManager.canEnterPictureInPicture(this)) {
+                Toast.makeText(this, R.string.pip_disabled, Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            
+            val success = pipCompatibilityManager.enterPictureInPictureSafely(this) {
+                updatePictureInPictureParams(viewModel.started.value)
+            }
+            
+            if (!success) {
+                Toast.makeText(this, R.string.pip_failed, Toast.LENGTH_SHORT).show()
+            }
         }
         binding.switchExample.setOnClickListener {
             startActivity(Intent(this@MainActivity, MovieActivity::class.java))
@@ -107,21 +130,36 @@ class MainActivity : AppCompatActivity() {
                     binding.startOrPause.setImageResource(
                         if (started) R.drawable.ic_pause_24dp else R.drawable.ic_play_arrow_24dp
                     )
-                    updatePictureInPictureParams(started)
+                    if (pipCompatibilityManager.hasPictureInPictureSupport()) {
+                        updatePictureInPictureParams(started)
+                    }
                 }
             }
+        }
+        
+        // Configure PiP button visibility and explanation text based on device support
+        if (pipCompatibilityManager.hasPictureInPictureSupport()) {
+            binding.pip.visibility = View.VISIBLE
+            // Use default explanation text (from layout-v26) that mentions PiP
+        } else {
+            binding.pip.visibility = View.GONE
+            // The layout already uses legacy explanation text via layout resource qualifiers
         }
 
         // Use trackPipAnimationHint view to make a smooth enter/exit pip transition.
         // See https://android.devsite.corp.google.com/develop/ui/views/picture-in-picture#smoother-transition
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                trackPipAnimationHintView(binding.stopwatchBackground)
+        if (pipCompatibilityManager.hasPictureInPictureSupport()) {
+            lifecycleScope.launch {
+                repeatOnLifecycle(Lifecycle.State.STARTED) {
+                    trackPipAnimationHintView(binding.stopwatchBackground)
+                }
             }
         }
 
         // Handle events from the action icons on the picture-in-picture mode.
-        registerReceiver(broadcastReceiver, IntentFilter(ACTION_STOPWATCH_CONTROL))
+        if (pipCompatibilityManager.hasRemoteActionSupport()) {
+            registerReceiver(broadcastReceiver, IntentFilter(ACTION_STOPWATCH_CONTROL))
+        }
     }
 
     // This is called when the activity gets into or out of the picture-in-picture mode.
@@ -145,49 +183,56 @@ class MainActivity : AppCompatActivity() {
      * Updates the parameters of the picture-in-picture mode for this activity based on the current
      * [started] state of the stopwatch.
      */
-    private fun updatePictureInPictureParams(started: Boolean): PictureInPictureParams {
-        val params = PictureInPictureParams.Builder()
-            // Set action items for the picture-in-picture mode. These are the only custom controls
-            // available during the picture-in-picture mode.
-            .setActions(
-                listOf(
-                    // "Clear" action.
-                    createRemoteAction(
-                        R.drawable.ic_refresh_24dp,
-                        R.string.clear,
-                        REQUEST_CLEAR,
-                        CONTROL_TYPE_CLEAR
-                    ),
-                    if (started) {
-                        // "Pause" action when the stopwatch is already started.
+    private fun updatePictureInPictureParams(started: Boolean): PictureInPictureParams? {
+        if (!pipCompatibilityManager.hasPictureInPictureSupport()) {
+            return null
+        }
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val params = PictureInPictureParams.Builder()
+                // Set action items for the picture-in-picture mode. These are the only custom controls
+                // available during the picture-in-picture mode.
+                .setActions(
+                    listOfNotNull(
+                        // "Clear" action.
                         createRemoteAction(
-                            R.drawable.ic_pause_24dp,
-                            R.string.pause,
-                            REQUEST_START_OR_PAUSE,
-                            CONTROL_TYPE_START_OR_PAUSE
-                        )
-                    } else {
-                        // "Start" action when the stopwatch is not started.
-                        createRemoteAction(
-                            R.drawable.ic_play_arrow_24dp,
-                            R.string.start,
-                            REQUEST_START_OR_PAUSE,
-                            CONTROL_TYPE_START_OR_PAUSE
-                        )
-                    }
+                            R.drawable.ic_refresh_24dp,
+                            R.string.clear,
+                            REQUEST_CLEAR,
+                            CONTROL_TYPE_CLEAR
+                        ),
+                        if (started) {
+                            // "Pause" action when the stopwatch is already started.
+                            createRemoteAction(
+                                R.drawable.ic_pause_24dp,
+                                R.string.pause,
+                                REQUEST_START_OR_PAUSE,
+                                CONTROL_TYPE_START_OR_PAUSE
+                            )
+                        } else {
+                            // "Start" action when the stopwatch is not started.
+                            createRemoteAction(
+                                R.drawable.ic_play_arrow_24dp,
+                                R.string.start,
+                                REQUEST_START_OR_PAUSE,
+                                CONTROL_TYPE_START_OR_PAUSE
+                            )
+                        }
+                    )
                 )
-            )
-            // Set the aspect ratio of the picture-in-picture mode.
-            .setAspectRatio(Rational(16, 9))
-            // Turn the screen into the picture-in-picture mode if it's hidden by the "Home" button.
-            .setAutoEnterEnabled(true)
-            // Disables the seamless resize. The seamless resize works great for videos where the
-            // content can be arbitrarily scaled, but you can disable this for non-video content so
-            // that the picture-in-picture mode is resized with a cross fade animation.
-            .setSeamlessResizeEnabled(false)
-            .build()
-        setPictureInPictureParams(params)
-        return params
+                // Set the aspect ratio of the picture-in-picture mode.
+                .setAspectRatio(Rational(16, 9))
+                // Turn the screen into the picture-in-picture mode if it's hidden by the "Home" button.
+                .setAutoEnterEnabled(true)
+                // Disables the seamless resize. The seamless resize works great for videos where the
+                // content can be arbitrarily scaled, but you can disable this for non-video content so
+                // that the picture-in-picture mode is resized with a cross fade animation.
+                .setSeamlessResizeEnabled(false)
+                .build()
+            setPictureInPictureParams(params)
+            return params
+        }
+        return null
     }
 
     /**
@@ -199,18 +244,22 @@ class MainActivity : AppCompatActivity() {
         @StringRes titleResId: Int,
         requestCode: Int,
         controlType: Int
-    ): RemoteAction {
-        return RemoteAction(
-            Icon.createWithResource(this, iconResId),
-            getString(titleResId),
-            getString(titleResId),
-            PendingIntent.getBroadcast(
-                this,
-                requestCode,
-                Intent(ACTION_STOPWATCH_CONTROL)
-                    .putExtra(EXTRA_CONTROL_TYPE, controlType),
-                PendingIntent.FLAG_IMMUTABLE
+    ): RemoteAction? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            RemoteAction(
+                Icon.createWithResource(this, iconResId),
+                getString(titleResId),
+                getString(titleResId),
+                PendingIntent.getBroadcast(
+                    this,
+                    requestCode,
+                    Intent(ACTION_STOPWATCH_CONTROL)
+                        .putExtra(EXTRA_CONTROL_TYPE, controlType),
+                    PendingIntent.FLAG_IMMUTABLE
+                )
             )
-        )
+        } else {
+            null
+        }
     }
 }
