@@ -24,6 +24,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.res.Configuration
+import android.graphics.Rect
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
@@ -189,7 +190,7 @@ class MainActivity : AppCompatActivity() {
         }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val params = PictureInPictureParams.Builder()
+            val builder = PictureInPictureParams.Builder()
                 // Set action items for the picture-in-picture mode. These are the only custom controls
                 // available during the picture-in-picture mode.
                 .setActions(
@@ -222,13 +223,28 @@ class MainActivity : AppCompatActivity() {
                 )
                 // Set the aspect ratio of the picture-in-picture mode.
                 .setAspectRatio(Rational(16, 9))
-                // Turn the screen into the picture-in-picture mode if it's hidden by the "Home" button.
-                .setAutoEnterEnabled(true)
+            
+            // Seamless resize control (API 31+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 // Disables the seamless resize. The seamless resize works great for videos where the
                 // content can be arbitrarily scaled, but you can disable this for non-video content so
                 // that the picture-in-picture mode is resized with a cross fade animation.
-                .setSeamlessResizeEnabled(false)
-                .build()
+                builder.setSeamlessResizeEnabled(false)
+            }
+            
+            // Enhanced features for Android 12+ (API 31+)
+            if (pipCompatibilityManager.hasEnhancedPictureInPictureSupport()) {
+                // Enable automatic PiP entry for improved gesture navigation support
+                builder.setAutoEnterEnabled(true)
+                
+                // Add source rect hint for smoother animations
+                val sourceRect = Rect().apply {
+                    binding.stopwatchBackground.getGlobalVisibleRect(this)
+                }
+                builder.setSourceRectHint(sourceRect)
+            }
+            
+            val params = builder.build()
             setPictureInPictureParams(params)
             return params
         }

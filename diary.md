@@ -1,112 +1,85 @@
-# Development Diary - PictureInPicture Enhancement Project
+# Development Diary - Picture in Picture Kotlin Challenge
+## 1. Getting Started - Missing Sample Directory
+The first thing that tripped me up was the repo link. It didn’t work.
+After cloning Google’s sample repository I realised the PictureInPictureKotlin folder was deleted from main around twoSo I checked the git history and checked out the last commit that still had it. 
+That became my starting point. 
+First Impressions of the Codebase
+I reviewd the code to see what it did, but it was more of a quick demo app.
+It only supported API 31+, the timer was stuck inside the activity, and there were only a few instrumentation tests.
+A few notes I jotted down:
+- minSdkVersion 31 was way too high
+- timer logic was inside the activity lifecycle, not reusable
+- used LiveData everwhere, felt pretty outdated
+  So my first goal was to modernise things a bit before adding new features.
 
-## Unavailable repository
-The supplied url points to a non-existent directory.
-On further review of the git history, I foud he PictureInPictureKotlin directory has been deleted 
-from the main branch of the repository about 2 weeks ago.
-To proceed with the exercise, I checkout the last commit before the deletion which contains the 
-latest version of the directory.
+## 3. Tooling and Build Setup
+Android Studio didn’t like the setup. Java 21 with Gradle 7.5 gave me sync errors.
+I upgraded Gradle to 8.5, AGP to 8.1.4, and locked the build to Java 17 which fixed it.
+That also made it easier to use newer libs like Hilt and DataStore later.
 
-## Project Overview
-Working on enhancing the Google PictureInPicture sample to implement three key improvements:
-1. Legacy support (API 21+)
-2. Comprehensive unit testing
-3. Shared timer state across activities
+## 4. Architecture Planning
+Before writing code I wrote out a rough plan.
+- use a repository for timer state
+- switch to StateFlow instead of LiveData
+- add Hilt for dependency injection
+- maybe persist timer state with DataStore later
+  I wanted the project to look like something that could live in a real app, not just a sample.
 
-### Current Architecture Assessment
-The existing sample demonstrates modern PiP usage but has several limitations:
-- **minSdkVersion 31**: Very restrictive, excludes many devices still in use
-- **No unit tests for ViewModels**: Only instrumentation tests exist
-- **Activity-scoped timer**: Timer resets when navigating between activities
-- **LiveData usage**: While functional, Flow would be more future-proof
+## 5. Migrating from LiveData to Flow
+This was the first actual change.
+Flow is just easier to test and more consistent with modern Android.
+Replaced:
+MutableLiveData<Boolean> -> MutableStateFlow<Boolean>
+MutableLiveData<Long> -> MutableStateFlow<Long>
+and used stateIn with SharingStarted.WhileSubscribed(5000).
+Immediately cleaner and made testing much simpler.
 
-### Key Technical Decisions
+## 6. Adding Dependency Injection
+Then I added Hilt.
+Created a PictureInPictureApplication with @HiltAndroidApp, annotated both activities, and made a small TimeProvider. At first it looked a bit over-engineered but I knew it’d make testing time behaviour much easier later.
 
-#### LiveData → Flow Migration
-After reviewing the codebase, decided to migrate from LiveData to Flow for several reasons:
-- **Better testability**: Flow testing is more straightforward and doesn't require AndroidX Test
-- **Compose readiness**: Future-proofs the codebase for Compose migration
-- **Performance**: StateFlow with `WhileSubscribed()` provides better lifecycle management
-- **Consistency**: Aligns with modern reactive programming patterns in Android
+## 7. Setting Up Unit Testing
+Before adding any new logic I wanted tests working.
+The project had none for ViewModels.
+Added:
+- kotlinx-coroutines-test
+- app.cash.turbine
+- MockK and Truth
+  Then I wrote a few small tests for MainViewModel using a fake TimeProvider.
+  It was fast and reliable compared to old LiveData tests.
 
-#### Architecture Strategy
-Planning to implement a Repository pattern with dependency injection:
-- **TimerRepository**: Single source of truth for timer state
-- **Application-scoped ViewModels**: Share state across activities
-- **DataStore integration**: Persist timer state across app restarts
-- **Foreground Service**: Enable background timer execution
+## 8. Building the Timer Repository (Task 3)
+The biggest job was to make the timer keep running between screens.
+I built a TimerRepository with Hilt @Singleton scope so both activities could share it.
+MainViewModel became a lightweight wrapper that just delegates to the repository.
+Same with MovieViewModel.
+I also removed all the finish() calls between activities so they don’t destroy themselves.
+Suddenly the timer just kept ticking, even when switching screens.
+Pretty satisfying moment, to be honest.
 
-### Implementation Plan Structure
-Breaking down the work into atomic commits:
-1. **Foundation First**: Dependencies, architecture setup, Flow migration
-2. **Legacy Support**: Gradual API compatibility implementation
-3. **Testing Infrastructure**: Comprehensive unit test coverage
-4. **Shared State**: Cross-activity state management
-5. **Polish**: Performance optimization and documentation
+## 9. Testing the New Architecture
+After that refactor, old tests broke (expected).
+I rewrote them around the new responsibilities:
+- TimerRepositoryTest checked start, pause, resume, and reset.
+- MainViewModelTest just verified delegation using MockK.
+  The tests became much shorter and more reliable.
+  No more hanging coroutines or random delays.
 
-### IDE Configuration Setup
-**Implementation**: Added complete IDE integration:
-- Created Android Studio run configurations for app and MainActivity
-- Configured Gradle settings to use Java 17
-- Fixed Gradle wrapper to use stable 7.5 version (was updated to 9.0-milestone causing compatibility issues)
-- Added DEVELOPMENT.md with setup instructions
+## 10. Adding Legacy Support (Task 1)
+Now that it worked nicely I dropped the min SDK to 21.
+That broke Picture in Picture calls on old devices obviously.
+I made a small helper called PipCompatibilityManager to safely wrap PiP code.
+Devices under API 26 just skip PiP features and show a short info text.
+Used different layouts:
+- res/layout/main_activity.xml for normal
+- res/layout-v26/main_activity.xml for PiP enabled
+  So old devices still look clean without dead buttons.
 
-### Version Compatibility Resolution
-**Issue**: Android Studio detected Java/Gradle version incompatibility - Java 21 with Gradle 7.5 caused sync errors.
-
-**Solution**: Updated build system for Java 21 compatibility:
-- **Gradle**: Upgraded from 7.5 to 8.5 (supports Java 21)
-- **Android Gradle Plugin**: Updated from 7.4.2 to 8.1.4
-- **Java Target**: Updated compile/kotlin targets from 1.8 to 17 for consistency
-- **Environment**: Explicitly using Java 17 for build stability
-
-### Dependency Updates
-**Decision**: Updated build.gradle files with:
-- **Hilt**: For dependency injection and proper scoping of ViewModels/Repositories
-- **DataStore**: Modern replacement for SharedPreferences for timer state persistence
-- **Testing Libraries**: Added kotlinx-coroutines-test, Turbine, MockK for comprehensive Flow testing
-- **Namespace Migration**: Moved package declaration from AndroidManifest to build.gradle (modern practice)
-
-**Why?**: These dependencies establish the foundation for:
-1. Testable architecture with proper dependency injection
-2. Flow-based reactive programming with robust testing support
-3. State persistence across app restarts using DataStore
-
-### Hilt Integration
-**Implementation**: Added Hilt dependency injection setup:
-- Created `PictureInPictureApplication` with `@HiltAndroidApp`
-- Added `@AndroidEntryPoint` to both MainActivity and MovieActivity
-- Updated AndroidManifest to register the Application class
-
-**Result**: Build successful with Hilt integration. Ready for ViewModel dependency injection.
-
-## Phase 1.2: LiveData to Flow Migration (Completed)
-
-### ViewModel Modernization
-**Problem**: The original `MainViewModel` used LiveData, which while functional, lacks the power and composability of Flow.
-
-**Implementation**:
-- Replaced `MutableLiveData<Boolean>` with `MutableStateFlow<Boolean>` for started state
-- Replaced `MutableLiveData<Long>` with `MutableStateFlow<Long>` for time tracking
-- Converted time formatting from `LiveData.map()` to `Flow.map().stateIn()` with `WhileSubscribed(5000)`
-- Added `@HiltViewModel` annotation and `@Inject` constructor for dependency injection
-
-### Activity Integration
-**Updated MainActivity**:
-- Replaced `LiveData.observe()` with `Flow.collect()` inside `repeatOnLifecycle`
-- Used separate coroutine launches for each state collection
-- Maintained proper lifecycle awareness to prevent memory leaks
-
-**Benefits Achieved**:
-1. **Better Performance**: `SharingStarted.WhileSubscribed(5000)` stops upstream when no active observers
-2. **Compose Readiness**: StateFlow integrates seamlessly with Compose `collectAsState()`
-3. **Testing Simplicity**: Flow testing is more straightforward than LiveData testing
-4. **Modern Patterns**: Follows current Android architecture recommendations
-
-**Testing**: Build successful with APK generation. Ready for comprehensive unit testing.
-
-
-
----
-
-*Will continue updating this diary as implementation progresses, documenting decisions, challenges, and learnings along the way.*
+## 11. Enhanced PiP for Android 12+
+Once base support was stable I added small extras for Android 12+.
+ - setAutoEnterEnabled(true) and setSourceRectHint() make the transition smoother when using gestures.
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+builder.setAutoEnterEnabled(true)
+builder.setSourceRectHint(sourceRect)
+}
+It’s a small detail but feels more polished on newer phones.

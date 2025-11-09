@@ -74,6 +74,7 @@ class PipCompatibilityManager @Inject constructor() {
     fun getPictureInPictureStatusMessageRes(): Int {
         return when {
             !hasPictureInPictureSupport() -> R.string.pip_requires_api_26
+            hasEnhancedPictureInPictureSupport() -> R.string.pip_available_enhanced
             else -> R.string.pip_available
         }
     }

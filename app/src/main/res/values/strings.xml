@@ -39,6 +39,7 @@
     <string name="pip_failed">Failed to enter Picture-in-Picture mode</string>
     <string name="pip_requires_api_26">Picture-in-Picture requires Android 8.0 or higher</string>
     <string name="pip_available">Picture-in-Picture is available on this device</string>
+    <string name="pip_available_enhanced">Picture-in-Picture is available with enhanced features (stashing, improved gestures)</string>
 
     <!-- Movie -->
     <eat-comment />
