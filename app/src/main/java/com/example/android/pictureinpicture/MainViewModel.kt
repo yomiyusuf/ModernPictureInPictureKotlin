@@ -16,13 +16,15 @@
 
 package com.example.android.pictureinpicture
 
-import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.android.pictureinpicture.util.FrameScheduler
+import com.example.android.pictureinpicture.util.TimeProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -34,11 +36,15 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class MainViewModel @Inject constructor(): ViewModel() {
+class MainViewModel @Inject constructor(
+    private val timeProvider: TimeProvider,
+    private val frameScheduler: FrameScheduler,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Main
+): ViewModel() {
 
     private var job: Job? = null
 
-    private var startUptimeMillis = SystemClock.uptimeMillis()
+    private var startUptimeMillis = timeProvider.uptimeMillis()
     private val timeMillis = MutableStateFlow(0L)
 
     private val _started = MutableStateFlow(false)
@@ -67,16 +73,15 @@ class MainViewModel @Inject constructor(): ViewModel() {
             job?.cancel()
         } else {
             _started.value = true
-            job = viewModelScope.launch { start() }
+            job = viewModelScope.launch(dispatcher) { start() }
         }
     }
 
     private suspend fun CoroutineScope.start() {
-        startUptimeMillis = SystemClock.uptimeMillis() - timeMillis.value
+        startUptimeMillis = timeProvider.uptimeMillis() - timeMillis.value
         while (isActive) {
-            timeMillis.value = SystemClock.uptimeMillis() - startUptimeMillis
-            // Updates on every render frame.
-            awaitFrame()
+            timeMillis.value = timeProvider.uptimeMillis() - startUptimeMillis
+            frameScheduler.awaitNextFrame()
         }
     }
 
@@ -84,7 +89,7 @@ class MainViewModel @Inject constructor(): ViewModel() {
      * Clears the stopwatch to 00:00:00.
      */
     fun clear() {
-        startUptimeMillis = SystemClock.uptimeMillis()
+        startUptimeMillis = timeProvider.uptimeMillis()
         timeMillis.value = 0L
     }
 }

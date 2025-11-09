@@ -29,13 +29,13 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
-import android.view.View.OnClickListener
 import android.widget.ImageButton
 import android.widget.RelativeLayout
 import androidx.annotation.RawRes
 import com.example.android.pictureinpicture.R
 import java.io.IOException
 import java.lang.ref.WeakReference
+import androidx.core.content.withStyledAttributes
 
 /**
  * Provides video playback. There is nothing directly related to Picture-in-Picture here.
@@ -124,12 +124,14 @@ class MovieView @JvmOverloads constructor(
         minimize = findViewById(R.id.minimize)
 
         // Attributes
-        val a = context.obtainStyledAttributes(attrs, R.styleable.MovieView,
-                defStyleAttr, R.style.Widget_PictureInPicture_MovieView)
-        setVideoResourceId(a.getResourceId(R.styleable.MovieView_android_src, 0))
-        setAdjustViewBounds(a.getBoolean(R.styleable.MovieView_android_adjustViewBounds, false))
-        title = a.getString(R.styleable.MovieView_android_title) ?: ""
-        a.recycle()
+        context.withStyledAttributes(
+            attrs, R.styleable.MovieView,
+            defStyleAttr, R.style.Widget_PictureInPicture_MovieView
+        ) {
+            setVideoResourceId(getResourceId(R.styleable.MovieView_android_src, 0))
+            setAdjustViewBounds(getBoolean(R.styleable.MovieView_android_adjustViewBounds, false))
+            title = getString(R.styleable.MovieView_android_title) ?: ""
+        }
 
         // Bind view events
         val listener = OnClickListener { view ->

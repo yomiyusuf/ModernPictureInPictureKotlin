@@ -19,11 +19,11 @@ buildscript {
         google()
         mavenCentral()
     }
-    ext.kotlin_version = '1.8.0'
+    ext.kotlin_version = '1.8.22'
     dependencies {
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath 'com.android.tools.build:gradle:8.1.4'
-        classpath 'com.google.dagger:hilt-android-gradle-plugin:2.44'
+        classpath 'com.android.tools.build:gradle:8.11.2'
+        classpath 'com.google.dagger:hilt-android-gradle-plugin:2.48'
     }
 }
 
@@ -31,6 +31,12 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+    }
+    
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+        kotlinOptions {
+            jvmTarget = '17'
+        }
     }
 }
 
