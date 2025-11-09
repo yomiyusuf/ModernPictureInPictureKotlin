@@ -28,14 +28,19 @@ import android.support.v4.media.session.PlaybackStateCompat
 import android.text.util.Linkify
 import android.util.Rational
 import android.view.View
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.doOnLayout
 import com.example.android.pictureinpicture.databinding.MovieActivityBinding
 import com.example.android.pictureinpicture.widget.MovieView
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 
 /**
  * Demonstrates usage of Picture-in-Picture when using [MediaSessionCompat].
@@ -60,6 +65,7 @@ class MovieActivity : AppCompatActivity() {
         private const val PLAYLIST_SIZE = 2
     }
 
+    private val movieViewModel: MovieViewModel by viewModels()
     private lateinit var binding: MovieActivityBinding
 
     private lateinit var session: MediaSessionCompat
@@ -104,7 +110,6 @@ class MovieActivity : AppCompatActivity() {
         binding.pip.setOnClickListener { minimize() }
         binding.switchExample.setOnClickListener {
             startActivity(Intent(this@MovieActivity, MainActivity::class.java))
-            finish()
         }
 
         // Configure parameters for the picture-in-picture mode. We do this at the first layout of
@@ -113,6 +118,15 @@ class MovieActivity : AppCompatActivity() {
 
         // Set up the video; it automatically starts.
         binding.movie.setMovieListener(movieListener)
+        
+        // Collect timer state from the shared repository
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                movieViewModel.time.collect { time ->
+                    binding.timerDisplay.text = time
+                }
+            }
+        }
     }
 
     override fun onStart() {

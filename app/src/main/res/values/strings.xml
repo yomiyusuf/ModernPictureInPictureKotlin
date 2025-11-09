@@ -29,6 +29,7 @@
     The stopwatch controls are available in the picture-in-picture mode through the overlay actions.
     ]]></string>
     <string name="switch_media_session">Switch to using MediaSession</string>
+    <string name="timer_from_main_activity">Timer from Main Activity</string>
 
     <!-- Movie -->
     <eat-comment />
