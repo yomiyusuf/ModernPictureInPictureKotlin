@@ -20,6 +20,7 @@ import android.app.PictureInPictureParams
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Rect
+import android.os.Build
 import android.os.Bundle
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaControllerCompat
@@ -38,9 +39,11 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.doOnLayout
 import com.example.android.pictureinpicture.databinding.MovieActivityBinding
+import com.example.android.pictureinpicture.util.PipCompatibilityManager
 import com.example.android.pictureinpicture.widget.MovieView
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
  * Demonstrates usage of Picture-in-Picture when using [MediaSessionCompat].
@@ -68,6 +71,9 @@ class MovieActivity : AppCompatActivity() {
     private val movieViewModel: MovieViewModel by viewModels()
     private lateinit var binding: MovieActivityBinding
 
+    @Inject
+    lateinit var pipCompatibilityManager: PipCompatibilityManager
+    
     private lateinit var session: MediaSessionCompat
 
     /**
@@ -110,11 +116,14 @@ class MovieActivity : AppCompatActivity() {
         binding.pip.setOnClickListener { minimize() }
         binding.switchExample.setOnClickListener {
             startActivity(Intent(this@MovieActivity, MainActivity::class.java))
+            finish()
         }
 
         // Configure parameters for the picture-in-picture mode. We do this at the first layout of
         // the MovieView because we use its layout position and size.
-        binding.movie.doOnLayout { updatePictureInPictureParams() }
+        if (pipCompatibilityManager.hasPictureInPictureSupport()) {
+            binding.movie.doOnLayout { updatePictureInPictureParams() }
+        }
 
         // Set up the video; it automatically starts.
         binding.movie.setMovieListener(movieListener)
@@ -169,7 +178,7 @@ class MovieActivity : AppCompatActivity() {
 
     override fun onRestart() {
         super.onRestart()
-        if (!isInPictureInPictureMode) {
+        if (!pipCompatibilityManager.isActivityInPictureInPictureMode(this)) {
             // Show the video controls so the video can be easily resumed.
             binding.movie.showControls()
         }
@@ -202,30 +211,64 @@ class MovieActivity : AppCompatActivity() {
         }
     }
 
-    private fun updatePictureInPictureParams(): PictureInPictureParams {
+    private fun createPictureInPictureParams(): PictureInPictureParams? {
         // Calculate the aspect ratio of the PiP screen.
-        val aspectRatio = Rational(binding.movie.width, binding.movie.height)
-        // The movie view turns into the picture-in-picture mode.
+        val width = binding.movie.width
+        val height = binding.movie.height
+        
+        if (width <= 0 || height <= 0) {
+            // Use default 16:9 aspect ratio if video dimensions are invalid
+            return pipCompatibilityManager.createPictureInPictureParams(
+                aspectRatio = Rational(16, 9),
+                sourceRectHint = null
+            )
+        }
+        
+        val aspectRatio = Rational(width, height)
+        
+        // Get the visible rectangle for smooth animation hints
         val visibleRect = Rect()
         binding.movie.getGlobalVisibleRect(visibleRect)
-        val params = PictureInPictureParams.Builder()
-            .setAspectRatio(aspectRatio)
-            // Specify the portion of the screen that turns into the picture-in-picture mode.
-            // This makes the transition animation smoother.
-            .setSourceRectHint(visibleRect)
-            // The screen automatically turns into the picture-in-picture mode when it is hidden
-            // by the "Home" button.
-            .setAutoEnterEnabled(true)
-            .build()
-        setPictureInPictureParams(params)
+
+        return pipCompatibilityManager.createPictureInPictureParams(
+            aspectRatio = aspectRatio,
+            sourceRectHint = visibleRect
+        )
+    }
+
+    private fun updatePictureInPictureParams(): PictureInPictureParams? {
+        val params = createPictureInPictureParams()
+        pipCompatibilityManager.setPictureInPictureParamsSafely(this, params)
         return params
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        // Automatically enter PiP mode when user navigates away (home button, gesture navigation)
+        if (pipCompatibilityManager.hasPictureInPictureSupport() && 
+            pipCompatibilityManager.canEnterPictureInPicture(this)) {
+            
+            pipCompatibilityManager.enterPictureInPictureSafely(this) {
+                createPictureInPictureParams()
+            }
+        }
     }
 
     /**
      * Enters Picture-in-Picture mode.
      */
     private fun minimize() {
-        enterPictureInPictureMode(updatePictureInPictureParams())
+        if (!pipCompatibilityManager.hasPictureInPictureSupport()) {
+            return
+        }
+        
+        if (!pipCompatibilityManager.canEnterPictureInPicture(this)) {
+            return
+        }
+        
+        pipCompatibilityManager.enterPictureInPictureSafely(this) {
+            createPictureInPictureParams()
+        }
     }
 
     /**

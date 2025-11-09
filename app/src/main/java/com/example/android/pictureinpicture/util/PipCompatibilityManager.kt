@@ -34,7 +34,7 @@ class PipCompatibilityManager @Inject constructor() {
         // Check if the device supports PiP feature
         val packageManager = activity.packageManager
         val hasPipFeature = packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
-
+        
         return hasPipFeature
     }
 
@@ -42,18 +42,18 @@ class PipCompatibilityManager @Inject constructor() {
      * Safely attempts to enter Picture-in-Picture mode with proper error handling.
      * Returns true if successful, false if PiP is not available or entry failed.
      */
-    fun enterPictureInPictureSafely(activity: Activity, pipParamsProvider: () -> Any?): Boolean {
+    fun enterPictureInPictureSafely(activity: Activity, pipParamsProvider: () -> android.app.PictureInPictureParams?): Boolean {
         if (!canEnterPictureInPicture(activity)) {
             return false
         }
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+        if (!hasPictureInPictureSupport()) {
             return false
         }
 
         return try {
             val params = pipParamsProvider()
-            if (params != null && params is android.app.PictureInPictureParams) {
+            if (params != null) {
                 activity.enterPictureInPictureMode(params)
                 true
             } else {
@@ -85,5 +85,56 @@ class PipCompatibilityManager @Inject constructor() {
      */
     fun hasEnhancedPictureInPictureSupport(): Boolean {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S // Android 12+ (API 31)
+    }
+    
+    /**
+     * Safely checks if the activity is currently in Picture-in-Picture mode.
+     * Returns false on devices that don't support PiP or the isInPictureInPictureMode API.
+     */
+    fun isActivityInPictureInPictureMode(activity: Activity): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            // isInPictureInPictureMode requires API 24+
+            activity.isInPictureInPictureMode
+        } else {
+            // API 21-23 don't support PiP, so never in PiP mode
+            false
+        }
+    }
+    
+    /**
+     * Creates PictureInPictureParams with proper API level guards and progressive enhancement.
+     * Returns null if PiP is not supported on this device.
+     */
+    fun createPictureInPictureParams(
+        aspectRatio: android.util.Rational? = null,
+        sourceRectHint: android.graphics.Rect? = null
+    ): android.app.PictureInPictureParams? {
+        if (!hasPictureInPictureSupport()) {
+            return null
+        }
+        
+        if (hasPictureInPictureSupport()) {
+            val builder = android.app.PictureInPictureParams.Builder()
+            
+            // Set aspect ratio if provided
+            aspectRatio?.let { builder.setAspectRatio(it) }
+            
+            // Set source rect hint for smoother animations (API 26+)
+            sourceRectHint?.let { builder.setSourceRectHint(it) }
+            
+            // Auto-enter feature for enhanced PiP experience (API 31+)
+            if (hasEnhancedPictureInPictureSupport()) {
+                builder.setAutoEnterEnabled(true)
+            }
+            
+            return builder.build()
+        }
+        return null
+    }
+
+    fun setPictureInPictureParamsSafely(activity: Activity, params: android.app.PictureInPictureParams?) {
+        if (hasPictureInPictureSupport() && params != null) {
+            activity.setPictureInPictureParams(params)
+        }
     }
 }

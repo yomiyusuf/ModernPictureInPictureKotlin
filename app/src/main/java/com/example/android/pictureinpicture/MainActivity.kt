@@ -106,7 +106,7 @@ class MainActivity : AppCompatActivity() {
             }
             
             val success = pipCompatibilityManager.enterPictureInPictureSafely(this) {
-                updatePictureInPictureParams(viewModel.started.value)
+                createPictureInPictureParams(viewModel.started.value)
             }
             
             if (!success) {
@@ -115,6 +115,7 @@ class MainActivity : AppCompatActivity() {
         }
         binding.switchExample.setOnClickListener {
             startActivity(Intent(this@MainActivity, MovieActivity::class.java))
+            finish()
         }
         // Collect state from the viewModel using Flow
         lifecycleScope.launch {
@@ -163,6 +164,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        // Automatically enter PiP mode when user navigates away (home button, gesture navigation)
+        if (pipCompatibilityManager.hasPictureInPictureSupport() && 
+            pipCompatibilityManager.canEnterPictureInPicture(this)) {
+            
+            pipCompatibilityManager.enterPictureInPictureSafely(this) {
+                createPictureInPictureParams(viewModel.started.value)
+            }
+        }
+    }
+
     // This is called when the activity gets into or out of the picture-in-picture mode.
     override fun onPictureInPictureModeChanged(
         isInPictureInPictureMode: Boolean,
@@ -181,10 +194,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Updates the parameters of the picture-in-picture mode for this activity based on the current
-     * [started] state of the stopwatch.
+     * Creates the parameters for the picture-in-picture mode based on the current [started] state.
      */
-    private fun updatePictureInPictureParams(started: Boolean): PictureInPictureParams? {
+    private fun createPictureInPictureParams(started: Boolean): PictureInPictureParams? {
         if (!pipCompatibilityManager.hasPictureInPictureSupport()) {
             return null
         }
@@ -244,11 +256,19 @@ class MainActivity : AppCompatActivity() {
                 builder.setSourceRectHint(sourceRect)
             }
             
-            val params = builder.build()
-            setPictureInPictureParams(params)
-            return params
+            return builder.build()
         }
         return null
+    }
+
+    /**
+     * Updates the parameters of the picture-in-picture mode for this activity based on the current
+     * [started] state of the stopwatch.
+     */
+    private fun updatePictureInPictureParams(started: Boolean): PictureInPictureParams? {
+        val params = createPictureInPictureParams(started)
+        pipCompatibilityManager.setPictureInPictureParamsSafely(this, params)
+        return params
     }
 
     /**
